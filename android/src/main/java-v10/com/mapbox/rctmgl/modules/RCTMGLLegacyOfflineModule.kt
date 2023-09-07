@@ -19,15 +19,22 @@ import com.mapbox.maps.GlyphsRasterizationMode
 import com.mapbox.maps.OfflineRegion
 import com.mapbox.maps.OfflineRegionCallback
 import com.mapbox.maps.OfflineRegionCreateCallback
+import com.mapbox.maps.OfflineRegionDownloadState
 import com.mapbox.maps.OfflineRegionGeometryDefinition
 import com.mapbox.maps.OfflineRegionManager
+import com.mapbox.maps.OfflineRegionObserver
+import com.mapbox.maps.OfflineRegionStatus
 import com.mapbox.maps.ResourceOptions
+import com.mapbox.maps.ResponseError
+import com.mapbox.rctmgl.events.constants.EventTypes
 import com.mapbox.rctmgl.utils.ConvertUtils
 import com.mapbox.rctmgl.utils.extensions.calculateBoundingBox
 import com.mapbox.rctmgl.utils.extensions.toGeometryCollection
 import com.mapbox.rctmgl.utils.writableArrayOf
 import org.json.JSONException
 import java.io.UnsupportedEncodingException
+import java.util.Locale
+
 
 @ReactModule(name = RCTMGLLegacyOfflineModule.REACT_CLASS)
 class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationContext) :
@@ -97,6 +104,8 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
         return OfflineRegionCreateCallback { expected ->
             if (expected.isValue) {
                 expected.value?.let {
+                    it.setOfflineRegionObserver(regionObserver)
+                    it.setOfflineRegionDownloadState(OfflineRegionDownloadState.ACTIVE)
                     it.setMetadata(metadata) { expectedMetadata ->
                         if (expectedMetadata.isError) {
                             promise.reject("createPack error", "Failed to setMetadata")
@@ -141,6 +150,22 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
             Log.w(LOG_TAG, e.localizedMessage)
         }
         return metadataBytes
+    }
+
+    private val regionObserver: OfflineRegionObserver = object : OfflineRegionObserver {
+        override fun responseError(error: ResponseError) {
+            Log.d(LOG_TAG, "Error downloading some resources:  ${error}, ${error.message}")
+        }
+
+        override fun statusChanged(status: OfflineRegionStatus) {
+            Log.d(LOG_TAG,
+                "${status.completedResourceCount}/${status.requiredResourceCount} resources; ${status.completedResourceSize} bytes downloaded."
+            )
+        }
+
+        override fun mapboxTileCountLimitExceeded(Limit: Long) {
+            Log.d(LOG_TAG, "mapboxTileCountLimitExceeded")
+        }
     }
 
     @ReactMethod
