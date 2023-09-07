@@ -11,7 +11,6 @@ import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.module.annotations.ReactModule
 import com.mapbox.bindgen.Expected
-import com.mapbox.bindgen.Value
 import com.mapbox.geojson.FeatureCollection
 import com.mapbox.geojson.Geometry
 import com.mapbox.geojson.Point
@@ -28,8 +27,7 @@ import com.mapbox.rctmgl.utils.extensions.calculateBoundingBox
 import com.mapbox.rctmgl.utils.extensions.toGeometryCollection
 import com.mapbox.rctmgl.utils.writableArrayOf
 import org.json.JSONException
-import org.json.JSONObject
-
+import java.io.UnsupportedEncodingException
 
 @ReactModule(name = RCTMGLLegacyOfflineModule.REACT_CLASS)
 class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationContext) :
@@ -95,42 +93,26 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
         )
     }
 
-    private val callback: OfflineRegionCreateCallback = OfflineRegionCreateCallback { expected ->
-        if (expected.isValue) {
-            expected.value?.let {
-                Log.d(LOG_TAG,  "createPack done:")
-            }
-        } else {
-            Log.d(LOG_TAG,  "createPack error:")
-        }
-    }
-
-    @ReactMethod
-    @Throws(JSONException::class)
-    fun createPack(options: ReadableMap, promise: Promise) {
-        Log.d(LOG_TAG, "my Message")
-        try {
-            val metadataStr = options.getString("metadata")!!
-            val metadata = JSONObject(metadataStr)
-            val metadataValue = Value.valueOf(metadataStr)
-            val id = metadata.getString("name")!!
-
-            val boundsStr = options.getString("bounds")!!
-            val boundsFC = FeatureCollection.fromJson(boundsStr)
-            val bounds = convertPointPairToBounds(boundsFC)
-
-            val definition: OfflineRegionGeometryDefinition = makeDefinition(bounds, options)
-
-            UiThreadUtil.runOnUiThread(object: Runnable {
-                override fun run() {
-                    offlineRegionManager.createOfflineRegion(definition, callback)
+    private fun createPackCallback(promise: Promise, metadata: ByteArray): OfflineRegionCreateCallback {
+        return OfflineRegionCreateCallback { expected ->
+            if (expected.isValue) {
+                expected.value?.let {
+                    it.setMetadata(metadata) { expectedMetadata ->
+                        if (expectedMetadata.isError) {
+                            promise.reject("createPack error", "Failed to setMetadata")
+                        } else {
+                            Log.d(LOG_TAG,  "createPack done:")
+                            promise.resolve(fromOfflineRegion(it))
+                        }
+                    }
                 }
-            })
-
-        } catch (e: Throwable) {
-            promise.reject("createPack error:", e)
+            } else {
+                Log.d(LOG_TAG,  "createPack error:")
+                promise.reject("createPack error", "Failed to create OfflineRegion")
+            }
         }
     }
+
 
     private fun fromOfflineRegion(region: OfflineRegion): WritableMap? {
 
@@ -148,14 +130,52 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
         return map
     }
 
+    private fun getMetadataBytes(metadata: String?): ByteArray? {
+        var metadataBytes: ByteArray? = null
+        if (metadata == null || metadata.isEmpty()) {
+            return metadataBytes
+        }
+        try {
+            metadataBytes = metadata.toByteArray(charset("utf-8"))
+        } catch (e: UnsupportedEncodingException) {
+            Log.w(LOG_TAG, e.localizedMessage)
+        }
+        return metadataBytes
+    }
+
+    @ReactMethod
+    @Throws(JSONException::class)
+    fun createPack(options: ReadableMap, promise: Promise) {
+        Log.d(LOG_TAG, "my Message")
+        try {
+            val metadataBytes: ByteArray? =
+                getMetadataBytes(ConvertUtils.getString("metadata", options, ""))
+
+            val boundsStr = options.getString("bounds")!!
+            val boundsFC = FeatureCollection.fromJson(boundsStr)
+            val bounds = convertPointPairToBounds(boundsFC)
+
+            val definition: OfflineRegionGeometryDefinition = makeDefinition(bounds, options)
+
+            if (metadataBytes == null) {
+                promise.reject("createPack error:", "No metadata set")
+                return
+            };
+
+            UiThreadUtil.runOnUiThread {
+                offlineRegionManager.createOfflineRegion(definition, createPackCallback(promise, metadataBytes))
+            }
+
+        } catch (e: Throwable) {
+            promise.reject("createPack error:", e)
+        }
+    }
+
     @ReactMethod
     fun getPacks(promise: Promise) {
         Log.d(LOG_TAG,  "getPack start:")
 
-
-
-        UiThreadUtil.runOnUiThread(object : Runnable {
-            override fun run() {
+        UiThreadUtil.runOnUiThread {
             offlineRegionManager.getOfflineRegions(object: OfflineRegionCallback {
                 override fun run(expected: Expected<String, MutableList<OfflineRegion>>) {
                     if (expected.isValue) {
@@ -174,7 +194,7 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
                         Log.d(LOG_TAG,  "getPacks error:")
                     }
                 }
-            }) }
-        })
+            })
+        }
     }
 }
