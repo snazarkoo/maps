@@ -26,14 +26,13 @@ import com.mapbox.maps.OfflineRegionObserver
 import com.mapbox.maps.OfflineRegionStatus
 import com.mapbox.maps.ResourceOptions
 import com.mapbox.maps.ResponseError
-import com.mapbox.rctmgl.events.constants.EventTypes
 import com.mapbox.rctmgl.utils.ConvertUtils
 import com.mapbox.rctmgl.utils.extensions.calculateBoundingBox
 import com.mapbox.rctmgl.utils.extensions.toGeometryCollection
 import com.mapbox.rctmgl.utils.writableArrayOf
 import org.json.JSONException
+import org.json.JSONObject
 import java.io.UnsupportedEncodingException
-import java.util.Locale
 
 
 @ReactModule(name = RCTMGLLegacyOfflineModule.REACT_CLASS)
@@ -168,6 +167,31 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
         }
     }
 
+    private fun getRegionByName(
+        name: String?,
+        offlineRegions: List<OfflineRegion>
+    ): OfflineRegion? {
+        if (name.isNullOrEmpty()) {
+            return null
+        }
+        for (region in offlineRegions) {
+            var isRegion = false
+            try {
+                val byteMetadata = region.metadata
+
+                if (byteMetadata != null) {
+                    val metadata = JSONObject(String(byteMetadata))
+                    if (name == metadata.getString("name")) {
+                        return region
+                    }
+                }
+            } catch (e: JSONException) {
+                Log.w(LOG_TAG, e.localizedMessage)
+            }
+        }
+        return null
+    }
+
     @ReactMethod
     @Throws(JSONException::class)
     fun createPack(options: ReadableMap, promise: Promise) {
@@ -220,6 +244,37 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
                     }
                 }
             })
+        }
+    }
+
+    @ReactMethod
+    fun deletePack(name: String?, promise: Promise) {
+        UiThreadUtil.runOnUiThread {
+            offlineRegionManager.getOfflineRegions { regionsExpected ->
+                if (regionsExpected.isValue) {
+                    regionsExpected.value?.let { regions ->
+                        var region = getRegionByName(name, regions);
+
+                        if (region == null) {
+                            promise.resolve(null);
+                            Log.w(LOG_TAG, "deleteRegion - Unknown offline region");
+                            return@getOfflineRegions
+                        }
+
+                        region.setOfflineRegionDownloadState(OfflineRegionDownloadState.INACTIVE)
+                        
+                        region.purge { purgeExpected ->
+                            if (purgeExpected.isError) {
+                                promise.reject("deleteRegion", purgeExpected.error);
+                            } else {
+                                promise.resolve(null);
+                            }
+                        }
+                    }
+                } else {
+                    promise.reject("deleteRegion", regionsExpected.error);
+                }
+            }
         }
     }
 }
