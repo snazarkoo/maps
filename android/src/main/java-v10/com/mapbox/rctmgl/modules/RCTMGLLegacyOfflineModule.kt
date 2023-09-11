@@ -1,5 +1,7 @@
 package com.mapbox.rctmgl.modules
 
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -331,6 +333,55 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
                     }
                 } else {
                     promise.reject("getPackStatus", expected.error);
+                }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun pausePackDownload(name: String?, promise: Promise) {
+        UiThreadUtil.runOnUiThread {
+            offlineRegionManager.getOfflineRegions { expected ->
+                if (expected.isValue) {
+                    expected.value?.let { regions ->
+                        var region = getRegionByName(name, regions);
+
+                        if (region == null) {
+                            promise.resolve(null);
+                            Log.w(LOG_TAG, "pausePackDownload - Unknown offline region");
+                            return@getOfflineRegions
+                        }
+
+                        Handler(Looper.getMainLooper()).post(Runnable {
+                            region.setOfflineRegionDownloadState(OfflineRegionDownloadState.INACTIVE)
+                            promise.resolve(null)
+                        })
+                    }
+                } else {
+                    promise.reject("pausePackDownload", expected.error);
+                }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun resumePackDownload(name: String?, promise: Promise) {
+        UiThreadUtil.runOnUiThread {
+            offlineRegionManager.getOfflineRegions { expected ->
+                if (expected.isValue) {
+                    expected.value?.let { regions ->
+                        var region = getRegionByName(name, regions);
+
+                        if (region == null) {
+                            promise.resolve(null);
+                            Log.w(LOG_TAG, "resumeRegionDownload - Unknown offline region");
+                            return@getOfflineRegions
+                        }
+
+                        region.setOfflineRegionDownloadState(OfflineRegionDownloadState.ACTIVE)
+                    }
+                } else {
+                    promise.reject("resumeRegionDownload", expected.error);
                 }
             }
         }
