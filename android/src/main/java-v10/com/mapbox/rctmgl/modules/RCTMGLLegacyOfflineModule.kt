@@ -277,4 +277,62 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
             }
         }
     }
+
+    @ReactMethod
+    fun invalidatePack(name: String?, promise: Promise) {
+        UiThreadUtil.runOnUiThread {
+            offlineRegionManager.getOfflineRegions { expected ->
+                if (expected.isValue) {
+                    expected.value?.let { regions ->
+                        var region = getRegionByName(name, regions);
+
+                        if (region == null) {
+                            promise.resolve(null);
+                            Log.w(LOG_TAG, "invalidateRegion - Unknown offline region");
+                            return@getOfflineRegions
+                        }
+
+                        region.invalidate { expected ->
+                            if (expected.isError) {
+                                promise.reject("invalidateRegion", expected.error);
+                            } else {
+                                promise.resolve(null);
+                            }
+                        }
+                    }
+                } else {
+                    promise.reject("invalidateRegion", expected.error);
+                }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun getPackStatus(name: String?, promise: Promise) {
+        UiThreadUtil.runOnUiThread {
+            offlineRegionManager.getOfflineRegions { expected ->
+                if (expected.isValue) {
+                    expected.value?.let { regions ->
+                        var region = getRegionByName(name, regions);
+
+                        if (region == null) {
+                            promise.resolve(null);
+                            Log.w(LOG_TAG, "getPackStatus - Unknown offline region");
+                            return@getOfflineRegions
+                        }
+
+                        region.getStatus { expected ->
+                            if (expected.isError) {
+                                promise.reject("getPackStatus", expected.error);
+                            } else {
+                                promise.resolve(null);
+                            }
+                        }
+                    }
+                } else {
+                    promise.reject("getPackStatus", expected.error);
+                }
+            }
+        }
+    }
 }
