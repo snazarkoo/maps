@@ -23,9 +23,9 @@ RCT_EXTERN_METHOD(createPack:(NSDictionary *) options resolver: (RCTPromiseResol
 //                  rejecter:(RCTPromiseRejectBlock)reject)
 //
 //
-//RCT_EXTERN_METHOD(deletePack:(NSString *)name
-//                  resolver:(RCTPromiseResolveBlock)resolve
-//                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(deletePack:(NSString *)name
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
 //
 //RCT_EXTERN_METHOD(migrateOfflineCache:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 //

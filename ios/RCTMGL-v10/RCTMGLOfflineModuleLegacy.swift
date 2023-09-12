@@ -113,6 +113,19 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
     }
   }
   
+  func getRegionByName(name: String, offlineRegions: [OfflineRegion]) -> OfflineRegion? {
+    for region in offlineRegions {
+      let byteMetadata = region.getMetadata()
+      
+      let metadata = try! JSONSerialization.jsonObject(with: byteMetadata, options: []) as! [String:Any]
+      if (name == metadata["name"] as! String) {
+        return region
+      }
+    }
+    
+    return nil
+  }
+  
   // MARK: react methods
   
   @objc
@@ -165,17 +178,56 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
         switch result {
         case .success(let regions):
           
+          print("regions", regions)
+          
           var payload = [Any]()
 
           
           for region in regions {
-            self.convertPackToDict(region: region)
+            let pack = self.convertPackToDict(region: region)
+            payload.append(pack)
           }
           
           resolve(payload)
           
         case .failure(let error):
           rejecter("getPacks error", error.localizedDescription, error)
+        }
+      }
+    }
+  }
+  
+  @objc
+  func deletePack(_ name: String,
+                  resolver: @escaping RCTPromiseResolveBlock,
+                  rejecter: @escaping RCTPromiseRejectBlock)
+  {
+    print("start");
+    DispatchQueue.main.async {
+      self.offlineRegionManager.offlineRegions { result in
+        switch result {
+        case .success(let regions):
+          
+          let region  = self.getRegionByName(name: name, offlineRegions: regions)
+          
+          if (region == nil) {
+            resolver(nil);
+            print("deleteRegion - Unknown offline region");
+            return
+          }
+          
+          region!.purge { result in
+            switch result {
+            case let .failure(error):
+              rejecter("deleteRegion error", error.localizedDescription, error)
+              
+            case .success:
+              print("deleteRegion dene");
+              resolver(nil);
+            }
+          }
+        case .failure(let error):
+          rejecter("deleteRegion error", error.localizedDescription, error)
         }
       }
     }
