@@ -18,14 +18,7 @@ final class OfflineRegionObserverCustom: OfflineRegionObserver {
 @objc(RCTMGLOfflineModuleLegacy)
 class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
   static let RNMapboxInfoMetadataKey = "_rnmapbox"
-  
-  enum State : String {
-      case invalid
-      case inactive
-      case active
-      case complete
-      case unknown
-  }
+  final let CompleteRegionDownloadState = 2
   
   lazy var offlineRegionManager: OfflineRegionManager = {
       return OfflineRegionManager(resourceOptions: .init(accessToken: MGLModule.accessToken!))
@@ -44,16 +37,16 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
   }
   
   private func makeRegionStatusPayload(name: String, status: OfflineRegionStatus) -> [String:Any?] {
-    var progressPercentage = status.completedResourceCount / status.requiredResourceCount;
-    
-    if (status.requiredResourceCount == 0) {
-      progressPercentage = 0;
-    }
-    
-    var result: [String:Any?] = [
-        "state": status.downloadState,
+    let progressPercentage = status.requiredResourceCount == 0 ?
+      0 :
+      Double(status.completedResourceCount) / Double(status.requiredResourceCount)
+    let percentage = ceil(Double(progressPercentage) * 100.0)
+    let isCompleted = percentage == 100.0
+    let state = isCompleted ? CompleteRegionDownloadState : status.downloadState.rawValue
+    let result: [String:Any?] = [
+        "state": state,
         "name": name,
-        "percentage": ceil(Double(progressPercentage) * 100.0),
+        "percentage": percentage,
         "completedResourceCount": status.completedResourceCount,
         "completedResourceSize": status.completedResourceSize,
         "completedTileSize": status.completedTileSize,
