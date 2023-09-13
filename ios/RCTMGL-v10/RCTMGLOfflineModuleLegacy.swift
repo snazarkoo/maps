@@ -37,13 +37,33 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
   }
 
   
-  
-  
   @objc
   override
   func supportedEvents() -> [String] {
     return [Callbacks.error.rawValue, Callbacks.progress.rawValue]
   }
+  
+  private func makeRegionStatusPayload(name: String, status: OfflineRegionStatus) -> [String:Any?] {
+    var progressPercentage = status.completedResourceCount / status.requiredResourceCount;
+    
+    if (status.requiredResourceCount == 0) {
+      progressPercentage = 0;
+    }
+    
+    var result: [String:Any?] = [
+        "state": status.downloadState,
+        "name": name,
+        "percentage": ceil(Double(progressPercentage) * 100.0),
+        "completedResourceCount": status.completedResourceCount,
+        "completedResourceSize": status.completedResourceSize,
+        "completedTileSize": status.completedTileSize,
+        "completedTileCount": status.completedTileCount,
+        "requiredResourceCount": status.requiredResourceCount
+      ]
+    
+      return result
+    }
+    
 
   func convertPointPairToBounds(_ bounds: Geometry) -> Geometry {
     guard case .geometryCollection(let gc) = bounds else {
@@ -71,23 +91,19 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
     ]))
   }
   
-  func convertPackToDict(region: OfflineRegion) -> [String: Any]? {
+  func convertRegionToPack(region: OfflineRegion) -> [String: Any]? {
     let bb = RCTMGLFeatureUtils.boundingBox(geometry: region.getGeometryDefinition()!.geometry!)!
     let jsonBounds = [
        bb.northEast.longitude, bb.northEast.latitude,
        bb.southWest.longitude, bb.southWest.latitude
     ]
-    
     let metadata = region.getMetadata()
-    
-    do {
-        return [
-            "metadata": String(data: metadata, encoding: .utf8),
-            "bounds": jsonBounds
-        ]
-    } catch {
-        return nil
-    }
+    let pack: [String: Any] = [
+      "metadata": String(data: metadata, encoding: .utf8),
+      "bounds": jsonBounds
+    ]
+  
+    return pack
   }
   
   
@@ -108,7 +124,7 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
         rejecter("createPack error", error.localizedDescription, error)
 
       case .success():
-        resolver(self?.convertPackToDict(region: region))
+        resolver(self?.convertRegionToPack(region: region))
       }
     }
   }
@@ -177,19 +193,15 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
       self.offlineRegionManager.offlineRegions { result in
         switch result {
         case .success(let regions):
-          
-          print("regions", regions)
-          
-          var payload = [Any]()
-
+          var payload = [[String: Any]]()
           
           for region in regions {
-            let pack = self.convertPackToDict(region: region)
-            payload.append(pack)
+            if let pack = self.convertRegionToPack(region: region) {
+              payload.append(pack)
+            }
           }
           
           resolve(payload)
-          
         case .failure(let error):
           rejecter("getPacks error", error.localizedDescription, error)
         }
@@ -202,32 +214,93 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
                   resolver: @escaping RCTPromiseResolveBlock,
                   rejecter: @escaping RCTPromiseRejectBlock)
   {
-    print("start");
     DispatchQueue.main.async {
       self.offlineRegionManager.offlineRegions { result in
         switch result {
         case .success(let regions):
-          
-          let region  = self.getRegionByName(name: name, offlineRegions: regions)
-          
-          if (region == nil) {
+          guard let region = self.getRegionByName(name: name, offlineRegions: regions) else {
             resolver(nil);
             print("deleteRegion - Unknown offline region");
             return
           }
           
-          region!.purge { result in
+          region.setOfflineRegionDownloadStateFor(.inactive)
+          region.purge { result in
             switch result {
             case let .failure(error):
               rejecter("deleteRegion error", error.localizedDescription, error)
               
             case .success:
-              print("deleteRegion dene");
+              print("deleteRegion done");
               resolver(nil);
             }
           }
         case .failure(let error):
           rejecter("deleteRegion error", error.localizedDescription, error)
+        }
+      }
+    }
+  }
+  
+  @objc
+  func invalidatePack(_ name: String,
+                  resolver: @escaping RCTPromiseResolveBlock,
+                  rejecter: @escaping RCTPromiseRejectBlock)
+  {
+    DispatchQueue.main.async {
+      self.offlineRegionManager.offlineRegions { result in
+        switch result {
+        case .success(let regions):
+          guard let region = self.getRegionByName(name: name, offlineRegions: regions) else {
+            resolver(nil);
+            print("invalidatePack - Unknown offline region");
+            return
+          }
+          
+          region.invalidate { result in
+            switch result {
+            case let .failure(error):
+              rejecter("invalidatePack error", error.localizedDescription, error)
+              
+            case .success:
+              print("invalidatePack done");
+              resolver(nil);
+            }
+          }
+        case .failure(let error):
+          rejecter("invalidatePack error", error.localizedDescription, error)
+        }
+      }
+    }
+  }
+  
+  @objc
+  func getPackStatus(_ name: String,
+                  resolver: @escaping RCTPromiseResolveBlock,
+                  rejecter: @escaping RCTPromiseRejectBlock)
+  {
+    DispatchQueue.main.async {
+      self.offlineRegionManager.offlineRegions { result in
+        switch result {
+        case .success(let regions):
+          guard let region = self.getRegionByName(name: name, offlineRegions: regions) else {
+            resolver(nil);
+            print("getPackStatus - Unknown offline region");
+            return
+          }
+          
+          region.getStatus { result in
+            switch result {
+            case let .success(status):
+              print("getPackStatus done");
+              resolver(self.makeRegionStatusPayload(name: name, status: status));
+            
+            case let .failure(error):
+              rejecter("getPackStatus error", error.localizedDescription, error)
+            }
+          }
+        case .failure(let error):
+          rejecter("getPackStatus error", error.localizedDescription, error)
         }
       }
     }

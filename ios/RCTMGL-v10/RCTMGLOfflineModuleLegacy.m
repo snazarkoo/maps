@@ -18,12 +18,16 @@ RCT_EXTERN_METHOD(createPack:(NSDictionary *) options resolver: (RCTPromiseResol
 //
 //RCT_EXTERN_METHOD(setProgressEventThrottle:(nonnull NSNumber *)throttleValue)
 //
-//RCT_EXTERN_METHOD(getPackStatus:(NSString *)name
-//                  resolver:(RCTPromiseResolveBlock)resolve
-//                  rejecter:(RCTPromiseRejectBlock)reject)
-//
-//
+RCT_EXTERN_METHOD(getPackStatus:(NSString *)name
+                 resolver:(RCTPromiseResolveBlock)resolve
+                 rejecter:(RCTPromiseRejectBlock)reject)
+
+
 RCT_EXTERN_METHOD(deletePack:(NSString *)name
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(invalidatePack:(NSString *)name
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 //
