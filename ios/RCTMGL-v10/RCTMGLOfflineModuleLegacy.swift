@@ -305,4 +305,54 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
       }
     }
   }
+  
+  @objc
+  func pausePackDownload(_ name: String,
+                  resolver: @escaping RCTPromiseResolveBlock,
+                  rejecter: @escaping RCTPromiseRejectBlock)
+  {
+    DispatchQueue.main.async {
+      self.offlineRegionManager.offlineRegions { result in
+        switch result {
+        case .success(let regions):
+          guard let region = self.getRegionByName(name: name, offlineRegions: regions) else {
+            resolver(nil);
+            print("pausePackDownload - Unknown offline region");
+            return
+          }
+          
+          region.setOfflineRegionDownloadStateFor(.inactive)
+          resolver(nil);
+          
+        case .failure(let error):
+          rejecter("pausePackDownload error", error.localizedDescription, error)
+        }
+      }
+    }
+  }
+  
+  @objc
+  func resumePackDownload(_ name: String,
+                  resolver: @escaping RCTPromiseResolveBlock,
+                  rejecter: @escaping RCTPromiseRejectBlock)
+  {
+    DispatchQueue.main.async {
+      self.offlineRegionManager.offlineRegions { result in
+        switch result {
+        case .success(let regions):
+          guard let region = self.getRegionByName(name: name, offlineRegions: regions) else {
+            resolver(nil);
+            print("resumePackDownload - Unknown offline region");
+            return
+          }
+          
+          region.setOfflineRegionDownloadStateFor(.active)
+          resolver(nil);
+          
+        case .failure(let error):
+          rejecter("resumePackDownload error", error.localizedDescription, error)
+        }
+      }
+    }
+  }
 }
