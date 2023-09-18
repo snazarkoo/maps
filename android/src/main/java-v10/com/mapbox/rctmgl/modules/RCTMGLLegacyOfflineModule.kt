@@ -35,6 +35,7 @@ import com.mapbox.rctmgl.utils.writableArrayOf
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.UnsupportedEncodingException
+import kotlin.math.ceil
 
 
 @ReactModule(name = RCTMGLLegacyOfflineModule.REACT_CLASS)
@@ -48,6 +49,7 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
         const val DEFAULT_STYLE_URL = "mapbox://styles/mapbox/streets-v11"
         const val DEFAULT_MIN_ZOOM_LEVEL = 10.0
         const val DEFAULT_MAX_ZOOM_LEVEL = 20.0
+        const val COMPLETE_REGION_DOWNLOAD_STATE = 2
     }
 
     override fun getName(): String {
@@ -177,7 +179,6 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
             return null
         }
         for (region in offlineRegions) {
-            var isRegion = false
             try {
                 val byteMetadata = region.metadata
 
@@ -192,6 +193,24 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
             }
         }
         return null
+    }
+
+    private fun makeRegionStatus(regionName: String, status: OfflineRegionStatus): WritableMap? {
+        val map = Arguments.createMap()
+        val  progressPercentage = if (status.requiredResourceCount > 0) status.completedResourceCount / status.requiredResourceCount else 0.0
+        val percentage = ceil(progressPercentage.toDouble() * 100.0 )
+        val isCompleted = percentage == 100.0
+        val downloadState = if (isCompleted) COMPLETE_REGION_DOWNLOAD_STATE else status.downloadState.ordinal
+
+        map.putString("name", regionName)
+        map.putInt("state", downloadState)
+        map.putDouble("percentage", percentage)
+        map.putInt("completedResourceCount", status.completedResourceCount.toInt())
+        map.putInt("completedResourceSize", status.completedResourceSize.toInt())
+        map.putInt("completedTileSize", status.completedTileSize.toInt())
+        map.putInt("completedTileCount", status.completedTileCount.toInt())
+        map.putInt("requiredResourceCount", status.requiredResourceCount.toInt())
+        return map
     }
 
     @ReactMethod
@@ -323,12 +342,14 @@ class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationConte
                             return@getOfflineRegions
                         }
 
-                        region.getStatus { expected ->
-                            if (expected.isError) {
-                                promise.reject("getPackStatus", expected.error);
-                            } else {
-                                promise.resolve(null);
-                            }
+                        region.getStatus {
+                           if (it.isValue) {
+                               it.value?.let { status ->
+                                   promise.resolve(makeRegionStatus(name!!, status));
+                               }
+                           } else {
+                               promise.reject("getPackStatus", expected.error);
+                           }
                         }
                     }
                 } else {
