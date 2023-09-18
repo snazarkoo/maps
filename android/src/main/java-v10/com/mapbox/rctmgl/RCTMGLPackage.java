@@ -40,7 +40,7 @@ import com.mapbox.rctmgl.components.styles.sources.RCTMGLRasterDemSourceManager;
 import com.mapbox.rctmgl.components.styles.sources.RCTMGLShapeSourceManager;
 import com.mapbox.rctmgl.components.styles.sources.RCTMGLVectorSourceManager;
 
-import com.mapbox.rctmgl.modules.RCTMGLLegacyOfflineModule;
+import com.mapbox.rctmgl.modules.RCTMGLOfflineModuleLegacy;
 import com.mapbox.rctmgl.modules.RCTMGLLogging;
 
 import com.mapbox.rctmgl.modules.RCTMGLOfflineModule;
@@ -59,7 +59,7 @@ public class RCTMGLPackage implements ReactPackage {
         modules.add(new RCTMGLLocationModule(reactApplicationContext));
 
         modules.add(new RCTMGLOfflineModule(reactApplicationContext));
-        modules.add(new RCTMGLLegacyOfflineModule(reactApplicationContext));
+        modules.add(new RCTMGLOfflineModuleLegacy(reactApplicationContext));
         modules.add(new RCTMGLSnapshotModule(reactApplicationContext));
 
         modules.add(new RCTMGLLogging(reactApplicationContext));

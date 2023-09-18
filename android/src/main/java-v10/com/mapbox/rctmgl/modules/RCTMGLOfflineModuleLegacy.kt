@@ -38,13 +38,13 @@ import java.io.UnsupportedEncodingException
 import kotlin.math.ceil
 
 
-@ReactModule(name = RCTMGLLegacyOfflineModule.REACT_CLASS)
-class RCTMGLLegacyOfflineModule(private val mReactContext: ReactApplicationContext) :
+@ReactModule(name = RCTMGLOfflineModuleLegacy.REACT_CLASS)
+class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(
         mReactContext
     ) {
     companion object {
-        const val REACT_CLASS = "RCTMGLLegacyOfflineModule"
+        const val REACT_CLASS = "RCTMGLOfflineModuleLegacy"
         const val LOG_TAG = "LegacyOfflineModule"
         const val DEFAULT_STYLE_URL = "mapbox://styles/mapbox/streets-v11"
         const val DEFAULT_MIN_ZOOM_LEVEL = 10.0
