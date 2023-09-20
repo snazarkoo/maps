@@ -17,7 +17,6 @@ final class OfflineRegionObserverCustom: OfflineRegionObserver {
 
 @objc(RCTMGLOfflineModuleLegacy)
 class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
-  static let RNMapboxInfoMetadataKey = "_rnmapbox"
   final let CompleteRegionDownloadState = 2
   
   lazy var offlineRegionManager: OfflineRegionManager = {
@@ -36,11 +35,15 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
     return [Callbacks.error.rawValue, Callbacks.progress.rawValue]
   }
   
+  @objc
+  override
+  static func requiresMainQueueSetup() -> Bool {
+    return true
+  }
+  
   private func makeRegionStatusPayload(name: String, status: OfflineRegionStatus) -> [String:Any?] {
-    let progressPercentage = status.requiredResourceCount == 0 ?
-      0 :
-      Double(status.completedResourceCount) / Double(status.requiredResourceCount)
-    let percentage = ceil(Double(progressPercentage) * 100.0)
+    let progressPercentage = status.requiredResourceCount > 0 ? Double(status.completedResourceCount) / Double(status.requiredResourceCount) : 0
+    let percentage = min(ceil(Double(progressPercentage) * 100.0), 100.0)
     let isCompleted = percentage == 100.0
     let state = isCompleted ? CompleteRegionDownloadState : status.downloadState.rawValue
     let result: [String:Any?] = [
@@ -58,37 +61,36 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
     }
     
 
-  func convertPointPairToBounds(_ bounds: Geometry) -> Geometry {
+  func convertPointPairToBounds(_ bounds: Geometry) -> CoordinateBounds? {
     guard case .geometryCollection(let gc) = bounds else {
-      return bounds
+      return nil
     }
     let geometries = gc.geometries
+    
     guard geometries.count == 2 else {
-      return bounds
+      return nil
     }
     guard case .point(let g0) = geometries[0] else {
-      return bounds
+      return nil
     }
     guard case .point(let g1) = geometries[1] else {
-      return bounds
+      return nil
     }
-    let pt0 = g0.coordinates
-    let pt1 = g1.coordinates
-    return .polygon(Polygon([
-      [
-        pt0,
-        CLLocationCoordinate2D(latitude: pt0.latitude, longitude: pt1.longitude),
-        pt1,
-        CLLocationCoordinate2D(latitude: pt1.latitude, longitude: pt0.longitude)
-      ]
-    ]))
+   
+    let pt0 = CLLocationCoordinate2D(latitude: g0.coordinates.latitude, longitude: g0.coordinates.longitude)
+    let pt1 = CLLocationCoordinate2D(latitude: g1.coordinates.latitude, longitude: g1.coordinates.longitude)
+    
+    return CoordinateBounds(southwest: pt0, northeast: pt1)
   }
   
   func convertRegionToPack(region: OfflineRegion) -> [String: Any]? {
-    let bb = RCTMGLFeatureUtils.boundingBox(geometry: region.getGeometryDefinition()!.geometry!)!
+    let bb = region.getTilePyramidDefinition()?.bounds
+
+    guard let bb = region.getTilePyramidDefinition()?.bounds else { return [:] }
+    
     let jsonBounds = [
-       bb.northEast.longitude, bb.northEast.latitude,
-       bb.southWest.longitude, bb.southWest.latitude
+       [bb.east, bb.north],
+       [bb.west, bb.south]
     ]
     let metadata = region.getMetadata()
     let pack: [String: Any] = [
@@ -114,7 +116,7 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
       switch result {
       case let .failure(error):
         print("Error creating offline region: \(error)")
-        rejecter("createPack error", error.localizedDescription, error)
+        rejecter("createPack error:", error.localizedDescription, error)
 
       case .success():
         resolver(self?.convertRegionToPack(region: region))
@@ -125,6 +127,15 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
   func getRegionByName(name: String, offlineRegions: [OfflineRegion]) -> OfflineRegion? {
     for region in offlineRegions {
       let byteMetadata = region.getMetadata()
+      
+      do {
+        let metadata = try JSONSerialization.jsonObject(with: byteMetadata, options: []) as! [String:Any]
+        if (name == metadata["name"] as! String) {
+          return region
+        }
+      } catch {
+        print("METADATA!", error)
+      }
       
       let metadata = try! JSONSerialization.jsonObject(with: byteMetadata, options: []) as! [String:Any]
       if (name == metadata["name"] as! String) {
@@ -146,16 +157,18 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
         
         let boundsStr = options["bounds"] as! String
         let boundsData = boundsStr.data(using: .utf8)
-        
-        
         var boundsFC = try JSONDecoder().decode(FeatureCollection.self, from: boundsData!)
         
-        var bounds = self.convertPointPairToBounds(RCTMGLFeatureUtils.fcToGeomtry(boundsFC))
-        print("BOUNDS: bounds", bounds)
+        guard let bounds = self.convertPointPairToBounds(RCTMGLFeatureUtils.fcToGeomtry(boundsFC)),
+              let metadataBytes = metadataStr.data(using: .utf8)
+        else {
+          rejecter("createPack error:", "No metadata or bounds set", nil)
+          return
+        }
         
-        let offlineRegionDef = OfflineRegionGeometryDefinition(
+        let offlineRegionDef = OfflineRegionTilePyramidDefinition(
           styleURL: styleURL,
-          geometry: bounds,
+          bounds: bounds,
           minZoom: options["minZoom"] as! Double,
           maxZoom: options["maxZoom"] as! Double,
           pixelRatio: Float(UIScreen.main.scale),
@@ -169,7 +182,7 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
 
           case let .success(region):
             self?.createPackCallback(region: region,
-                                    metadata: metadataStr.data(using: .utf8)!,
+                                    metadata: metadataBytes,
                                     resolver: resolver,
                                     rejecter: rejecter)
           }
@@ -346,6 +359,27 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
           rejecter("resumePackDownload error", error.localizedDescription, error)
         }
       }
+    }
+  }
+  
+  @objc
+  func migrateOfflineCache(_ resolve : @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+    // Old and new cache file paths
+    
+    let bundleIdentifier = Bundle.main.bundleIdentifier!
+    print("path!!", URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support/\(bundleIdentifier)/.mapbox/cache.db"))
+    let srcURL = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support/\(bundleIdentifier)/.mapbox/cache.db")
+    
+    let destURL = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support/.mapbox/map_data/map_data.db")
+    
+    let fileManager = FileManager.default
+    
+    do {
+      try fileManager.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: nil)
+      try fileManager.moveItem(at: srcURL, to: destURL)
+      resolve(nil)
+    } catch {
+      reject("migrateOfflineCache error:", error.localizedDescription, error)
     }
   }
 }
