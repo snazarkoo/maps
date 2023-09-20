@@ -1,5 +1,6 @@
 package com.mapbox.rctmgl.modules
 
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -14,27 +15,30 @@ import com.facebook.react.bridge.WritableMap
 import com.facebook.react.module.annotations.ReactModule
 import com.mapbox.bindgen.Expected
 import com.mapbox.geojson.FeatureCollection
-import com.mapbox.geojson.Geometry
 import com.mapbox.geojson.Point
-import com.mapbox.geojson.Polygon
+import com.mapbox.maps.CoordinateBounds
 import com.mapbox.maps.GlyphsRasterizationMode
 import com.mapbox.maps.OfflineRegion
 import com.mapbox.maps.OfflineRegionCallback
 import com.mapbox.maps.OfflineRegionCreateCallback
 import com.mapbox.maps.OfflineRegionDownloadState
-import com.mapbox.maps.OfflineRegionGeometryDefinition
 import com.mapbox.maps.OfflineRegionManager
 import com.mapbox.maps.OfflineRegionObserver
 import com.mapbox.maps.OfflineRegionStatus
+import com.mapbox.maps.OfflineRegionTilePyramidDefinition
 import com.mapbox.maps.ResourceOptions
 import com.mapbox.maps.ResponseError
 import com.mapbox.rctmgl.utils.ConvertUtils
-import com.mapbox.rctmgl.utils.extensions.calculateBoundingBox
+import com.mapbox.rctmgl.utils.Logger
 import com.mapbox.rctmgl.utils.extensions.toGeometryCollection
 import com.mapbox.rctmgl.utils.writableArrayOf
 import org.json.JSONException
 import org.json.JSONObject
+import java.io.File
 import java.io.UnsupportedEncodingException
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
 import kotlin.math.ceil
 
 
@@ -45,7 +49,7 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
     ) {
     companion object {
         const val REACT_CLASS = "RCTMGLOfflineModuleLegacy"
-        const val LOG_TAG = "LegacyOfflineModule"
+        const val LOG_TAG = "OfflineModuleLegacy"
         const val DEFAULT_STYLE_URL = "mapbox://styles/mapbox/streets-v11"
         const val DEFAULT_MIN_ZOOM_LEVEL = 10.0
         const val DEFAULT_MAX_ZOOM_LEVEL = 20.0
@@ -65,12 +69,12 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
     }
 
     private fun makeDefinition(
-        geometry: Geometry,
+        bounds: CoordinateBounds,
         options: ReadableMap
-    ): OfflineRegionGeometryDefinition {
-        return OfflineRegionGeometryDefinition.Builder()
+    ): OfflineRegionTilePyramidDefinition {
+        return OfflineRegionTilePyramidDefinition.Builder()
             .styleURL(ConvertUtils.getString("styleURL", options, DEFAULT_STYLE_URL))
-            .geometry(geometry)
+            .bounds(bounds)
             .minZoom(ConvertUtils.getDouble("minZoom", options, DEFAULT_MIN_ZOOM_LEVEL))
             .maxZoom(ConvertUtils.getDouble("maxZoom", options, DEFAULT_MAX_ZOOM_LEVEL))
             .pixelRatio(mReactContext.getResources().getDisplayMetrics().density)
@@ -78,29 +82,18 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
             .build()
     }
 
-    private fun convertPointPairToBounds(boundsFC: FeatureCollection): Geometry {
+    private fun convertPointPairToBounds(boundsFC: FeatureCollection): CoordinateBounds? {
         val geometryCollection = boundsFC.toGeometryCollection()
         val geometries = geometryCollection.geometries()
         if (geometries.size != 2) {
-            return geometryCollection
+            return null
         }
-        val g0 = geometries.get(0) as Point?
-        val g1 = geometries.get(1) as Point?
-        if (g0 == null || g1 == null) {
-            return geometryCollection
+        val pt0 = geometries.get(0) as Point?
+        val pt1 = geometries.get(1) as Point?
+        if (pt0 == null || pt1 == null) {
+            return null
         }
-        val pt0 = g0
-        val pt1 = g1
-        return Polygon.fromLngLats(
-            listOf(
-                listOf(
-                    pt0,
-                    Point.fromLngLat(pt1.longitude(), pt0.latitude()),
-                    pt1,
-                    Point.fromLngLat(pt0.longitude(), pt1.latitude()),
-                    pt0
-                ))
-        )
+        return CoordinateBounds(pt0, pt1)
     }
 
     private fun createPackCallback(promise: Promise, metadata: ByteArray): OfflineRegionCreateCallback {
@@ -111,7 +104,7 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
                     it.setOfflineRegionDownloadState(OfflineRegionDownloadState.ACTIVE)
                     it.setMetadata(metadata) { expectedMetadata ->
                         if (expectedMetadata.isError) {
-                            promise.reject("createPack error", "Failed to setMetadata")
+                            promise.reject("createPack error:", "Failed to setMetadata")
                         } else {
                             Log.d(LOG_TAG,  "createPack done:")
                             promise.resolve(fromOfflineRegion(it))
@@ -120,25 +113,26 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
                 }
             } else {
                 Log.d(LOG_TAG,  "createPack error:")
-                promise.reject("createPack error", "Failed to create OfflineRegion")
+                promise.reject("createPack error:", "Failed to create OfflineRegion")
             }
         }
     }
 
 
     private fun fromOfflineRegion(region: OfflineRegion): WritableMap? {
+        val bb = region.tilePyramidDefinition?.bounds
+        val map = Arguments.createMap()
 
-        val bb = region.geometryDefinition!!.geometry.calculateBoundingBox()
+        if (bb === null) return map
 
         val jsonBounds = writableArrayOf(
-            bb.northeast().longitude(),
-            bb.northeast().latitude(),
-            bb.southwest().longitude(),
-            bb.southwest().latitude()
+            writableArrayOf(bb.east(), bb.north()),
+            writableArrayOf(bb.west(), bb.south())
         )
-        val map = Arguments.createMap()
+
         map.putArray("bounds", jsonBounds)
         map.putString("metadata", String(region.metadata))
+
         return map
     }
 
@@ -197,10 +191,12 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
 
     private fun makeRegionStatus(regionName: String, status: OfflineRegionStatus): WritableMap? {
         val map = Arguments.createMap()
-        val  progressPercentage = if (status.requiredResourceCount > 0) status.completedResourceCount / status.requiredResourceCount else 0.0
-        val percentage = ceil(progressPercentage.toDouble() * 100.0 )
+        val progressPercentage = if (status.requiredResourceCount > 0) status.completedResourceCount.toDouble() / status.requiredResourceCount.toDouble() else 0.0
+        val percentage = ceil(progressPercentage * 100.0).coerceAtMost(100.0)
         val isCompleted = percentage == 100.0
         val downloadState = if (isCompleted) COMPLETE_REGION_DOWNLOAD_STATE else status.downloadState.ordinal
+
+        Log.d(LOG_TAG, "STATUS ${status.toString()}")
 
         map.putString("name", regionName)
         map.putInt("state", downloadState)
@@ -211,6 +207,16 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
         map.putInt("completedTileCount", status.completedTileCount.toInt())
         map.putInt("requiredResourceCount", status.requiredResourceCount.toInt())
         return map
+    }
+
+    @ReactMethod
+    fun addListener(eventName: String?) {
+        // Set up any upstream listeners or background tasks as necessary
+    }
+
+    @ReactMethod
+    fun removeListeners(count: Int?) {
+        // Remove upstream listeners, stop unnecessary background tasks
     }
 
     @ReactMethod
@@ -225,12 +231,12 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
             val boundsFC = FeatureCollection.fromJson(boundsStr)
             val bounds = convertPointPairToBounds(boundsFC)
 
-            val definition: OfflineRegionGeometryDefinition = makeDefinition(bounds, options)
-
-            if (metadataBytes == null) {
-                promise.reject("createPack error:", "No metadata set")
+            if (metadataBytes == null || bounds == null) {
+                promise.reject("createPack error:", "No metadata or bounds set")
                 return
             };
+
+            val definition: OfflineRegionTilePyramidDefinition = makeDefinition(bounds, options)
 
             UiThreadUtil.runOnUiThread {
                 offlineRegionManager.createOfflineRegion(definition, createPackCallback(promise, metadataBytes))
@@ -243,8 +249,6 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
 
     @ReactMethod
     fun getPacks(promise: Promise) {
-        Log.d(LOG_TAG,  "getPack start:")
-
         UiThreadUtil.runOnUiThread {
             offlineRegionManager.getOfflineRegions(object: OfflineRegionCallback {
                 override fun run(expected: Expected<String, MutableList<OfflineRegion>>) {
@@ -253,6 +257,7 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
                             val payload = Arguments.createArray()
 
                             for (region in it) {
+                                Log.d(LOG_TAG, "getPacks done:$region")
                                 payload.pushMap(fromOfflineRegion(region!!))
                             }
 
@@ -260,8 +265,8 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
                             promise.resolve(payload)
                         }
                     } else {
-                        promise.reject("getPacks", expected.error)
-                        Log.d(LOG_TAG,  "getPacks error:")
+                        promise.reject("getPacks error:", expected.error)
+                        Log.d(LOG_TAG,  "getPacks error:${expected.error}")
                     }
                 }
             })
@@ -286,14 +291,14 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
                         
                         region.purge { purgeExpected ->
                             if (purgeExpected.isError) {
-                                promise.reject("deleteRegion", purgeExpected.error);
+                                promise.reject("deleteRegion error:", purgeExpected.error);
                             } else {
                                 promise.resolve(null);
                             }
                         }
                     }
                 } else {
-                    promise.reject("deleteRegion", regionsExpected.error);
+                    promise.reject("deleteRegion error:", regionsExpected.error);
                 }
             }
         }
@@ -315,14 +320,14 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
 
                         region.invalidate { expected ->
                             if (expected.isError) {
-                                promise.reject("invalidateRegion", expected.error);
+                                promise.reject("invalidateRegion error:", expected.error);
                             } else {
                                 promise.resolve(null);
                             }
                         }
                     }
                 } else {
-                    promise.reject("invalidateRegion", expected.error);
+                    promise.reject("invalidateRegion error:", expected.error);
                 }
             }
         }
@@ -348,12 +353,12 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
                                    promise.resolve(makeRegionStatus(name!!, status));
                                }
                            } else {
-                               promise.reject("getPackStatus", expected.error);
+                               promise.reject("getPackStatus error:", expected.error);
                            }
                         }
                     }
                 } else {
-                    promise.reject("getPackStatus", expected.error);
+                    promise.reject("getPackStatus error:", expected.error);
                 }
             }
         }
@@ -379,7 +384,7 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
                         })
                     }
                 } else {
-                    promise.reject("pausePackDownload", expected.error);
+                    promise.reject("pausePackDownload error:", expected.error);
                 }
             }
         }
@@ -402,9 +407,36 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
                         region.setOfflineRegionDownloadState(OfflineRegionDownloadState.ACTIVE)
                     }
                 } else {
-                    promise.reject("resumeRegionDownload", expected.error);
+                    promise.reject("resumeRegionDownload error:", expected.error);
                 }
             }
+        }
+    }
+
+    @ReactMethod
+    fun migrateOfflineCache(promise: Promise) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Old and new cache file paths
+            Log.d(RCTMGLOfflineModule.LOG_TAG, "v10 cache moving started")
+            val targetPathName = mReactContext.filesDir.absolutePath + "/.mapbox/map_data"
+            val sourcePath = Paths.get(mReactContext.filesDir.absolutePath + "/mbgl-offline.db")
+            val targetPath = Paths.get(targetPathName + "/map_data.db")
+
+            try {
+                val directory = File(targetPathName)
+                directory.mkdirs()
+                Files.move(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING)
+                Log.d(LOG_TAG, "v10 cache directory created successfully")
+                promise.resolve(null)
+            } catch (e: Exception) {
+                val mes = "${e}... file move unsuccessful"
+                Log.d(LOG_TAG, mes)
+                promise.reject(mes)
+            }
+        } else {
+            val mes = "\"migrateOfflineCache only supported on api level 26 or later\""
+            Logger.w(LOG_TAG, "migrateOfflineCache only supported on api level 26 or later")
+            promise.reject(mes)
         }
     }
 }
