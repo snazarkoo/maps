@@ -418,12 +418,22 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Old and new cache file paths
             Log.d(RCTMGLOfflineModule.LOG_TAG, "v10 cache moving started")
-            val targetPathName = mReactContext.filesDir.absolutePath + "/.mapbox/map_data"
-            val sourcePath = Paths.get(mReactContext.filesDir.absolutePath + "/mbgl-offline.db")
-            val targetPath = Paths.get(targetPathName + "/map_data.db")
+            val targetDirectoryPathName = mReactContext.filesDir.absolutePath + "/.mapbox/map_data"
+            val sourcePathName = mReactContext.filesDir.absolutePath + "/mbgl-offline.db"
+            val sourcePath = Paths.get(sourcePathName)
+            val targetPath = Paths.get("$targetDirectoryPathName/map_data.db")
 
             try {
-                val directory = File(targetPathName)
+                val source = File(sourcePath.toString())
+
+                if (!source.exists()) {
+                    Log.d(LOG_TAG, "Nothing to migrate")
+                    promise.resolve(null)
+                    return
+                }
+
+                val directory = File(targetDirectoryPathName)
+
                 directory.mkdirs()
                 Files.move(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING)
                 Log.d(LOG_TAG, "v10 cache directory created successfully")
