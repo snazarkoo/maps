@@ -405,6 +405,7 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
                         }
 
                         region.setOfflineRegionDownloadState(OfflineRegionDownloadState.ACTIVE)
+                        promise.resolve(null);
                     }
                 } else {
                     promise.reject("resumeRegionDownload error:", expected.error);
