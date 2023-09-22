@@ -134,12 +134,8 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
           return region
         }
       } catch {
-        print("METADATA!", error)
-      }
-      
-      let metadata = try! JSONSerialization.jsonObject(with: byteMetadata, options: []) as! [String:Any]
-      if (name == metadata["name"] as! String) {
-        return region
+        print("getRegionByName error: \(error)")
+        return nil
       }
     }
     
