@@ -155,7 +155,7 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
         }
 
         override fun statusChanged(status: OfflineRegionStatus) {
-            Log.d(LOG_TAG,
+            Log.d("OfflineModuleV10Legacy",
                 "${status.completedResourceCount}/${status.requiredResourceCount} resources; ${status.completedResourceSize} bytes downloaded."
             )
         }
@@ -222,7 +222,8 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
     @ReactMethod
     @Throws(JSONException::class)
     fun createPack(options: ReadableMap, promise: Promise) {
-        Log.d(LOG_TAG, "my Message")
+        Log.d("OfflineModuleV10Legacy", "createPack started")
+
         try {
             val metadataBytes: ByteArray? =
                 getMetadataBytes(ConvertUtils.getString("metadata", options, ""))

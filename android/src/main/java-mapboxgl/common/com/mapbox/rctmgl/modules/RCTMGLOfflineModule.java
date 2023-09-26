@@ -83,6 +83,8 @@ public class RCTMGLOfflineModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void createPack(ReadableMap options, final Promise promise) {
+        Log.d("OfflineModuleV9", "create pack started");
+
         final String name = ConvertUtils.getString("name", options, "");
         final OfflineManager offlineManager = OfflineManager.getInstance(mReactContext);
         LatLngBounds latLngBounds = getBoundsFromOptions(options);
@@ -466,6 +468,9 @@ public class RCTMGLOfflineModule extends ReactContextBaseJavaModule {
             @Override
             public void onStatusChanged(OfflineRegionStatus status) {
                 if (shouldSendUpdate(System.currentTimeMillis(), status)) {
+                    Log.d("OfflineModuleV9",
+                            status.getCompletedResourceCount() + "/" + status.getRequiredResourceCount() + " " +
+                            + status.getCompletedResourceSize() +  " bytes downloaded.");
                     sendEvent(makeStatusEvent(name, status));
                     timestamp = System.currentTimeMillis();
                 }

@@ -1,18 +1,27 @@
-import geoViewport from '@mapbox/geo-viewport';
-import Mapbox, { Camera, MapView, offlineManager } from '@rnmapbox/maps';
-import React, { useState } from 'react';
-import { Button, Dimensions, TextInput } from 'react-native';
+import Mapbox, {
+  Camera,
+  Logger,
+  MapView,
+  offlineManager,
+} from '@rnmapbox/maps';
+import React, { useLayoutEffect, useState } from 'react';
+import { Button, TextInput } from 'react-native';
 
 import Page from '../common/Page';
 import { BaseExampleProps } from '../common/BaseExamplePropTypes';
 
-const CENTER_COORD: [number, number] = [-73.970895, 40.723279];
-const MAPBOX_VECTOR_TILE_SIZE = 512;
-const STYLE_URL = Mapbox.StyleURL.Satellite;
+const CENTER_COORD: [number, number] = [10.60776473348605, 59.874330907868426];
+const STYLE_URL = Mapbox.StyleURL.Light;
 
 const OfflineExample = (props: BaseExampleProps) => {
   const [packName, setPackName] = useState('pack-1');
   const [showEditTitle, setShowEditTitle] = useState(false);
+
+  useLayoutEffect(() => {
+    Logger.setLogCallback(() => {
+      return true;
+    });
+  }, []);
 
   return (
     <Page {...props}>
@@ -33,20 +42,15 @@ const OfflineExample = (props: BaseExampleProps) => {
       <Button
         title="Get all packs"
         onPress={async () => {
-          const packs = await offlineManager.getPacks();
-          console.log('=> packs:', packs);
-          packs.forEach((pack) => {
-            console.log(
-              'pack:',
-              pack,
-              'name:',
-              pack.name,
-              'bounds:',
-              pack?.bounds,
-              'metadata',
-              pack?.metadata,
-            );
-          });
+          try {
+            const packs = await offlineManager.getPacks();
+            console.log('packs', packs);
+            packs.forEach((pack) => {
+              console.log('name:', pack);
+            });
+          } catch (error) {
+            console.log('getPacks', error);
+          }
         }}
       />
       <Button
@@ -66,6 +70,7 @@ const OfflineExample = (props: BaseExampleProps) => {
             );
 
             console.log('=> status', await pack?.status());
+            console.log('time', new Date());
           }
         }}
       />
@@ -81,42 +86,64 @@ const OfflineExample = (props: BaseExampleProps) => {
       <Button
         title="Remove packs"
         onPress={async () => {
-          const result = await offlineManager.resetDatabase();
-          console.log('Reset DB done:', result);
+          const packs = await offlineManager.getPacks();
+          for (const pack of packs) {
+            const result = await offlineManager.deletePack(pack.name);
+            console.log('Pack deleted:', result);
+          }
+          console.log('Reset DB done');
         }}
       />
       <Button
         title="Create Pack"
-        onPress={() => {
-          const { width, height } = Dimensions.get('window');
-          const bounds: [number, number, number, number] = geoViewport.bounds(
-            CENTER_COORD,
-            12,
-            [width, height],
-            MAPBOX_VECTOR_TILE_SIZE,
-          );
-
+        onPress={async () => {
           const options = {
             name: packName,
             styleURL: STYLE_URL,
             bounds: [
-              [bounds[0], bounds[1]],
-              [bounds[2], bounds[3]],
+              [10.60776473348605, 59.874330907868426],
+              [10.712617871809584, 59.92020667067757],
             ] as [[number, number], [number, number]],
-            minZoom: 10,
-            maxZoom: 20,
+            minZoom: 4,
+            maxZoom: 16,
             metadata: {
               whatIsThat: 'foo',
             },
           };
-          offlineManager.createPack(options, (region, status) =>
-            console.log(
-              '=> progress callback region:',
-              props,
-              'status: ',
-              status,
-            ),
-          );
+
+          try {
+            await offlineManager.createPack(options, (region, status) =>
+              console.log(
+                '=> progress callback region:',
+                props,
+                'status: ',
+                status,
+              ),
+            );
+            console.log('createPack: done');
+          } catch (error) {
+            console.log('createPack: error', error);
+          }
+        }}
+      />
+      <Button
+        title="Pause pack"
+        onPress={async () => {
+          const pack = await offlineManager.getPack(packName);
+          if (pack) {
+            console.log('name:!!', pack);
+            console.log('=> pause', await pack?.pause());
+          }
+        }}
+      />
+      <Button
+        title="Resume pack"
+        onPress={async () => {
+          const pack = await offlineManager.getPack(packName);
+          if (pack) {
+            console.log('name:', pack.name);
+            console.log('=> resume', await pack?.resume());
+          }
         }}
       />
       <MapView style={{ flex: 1 }} styleURL={STYLE_URL}>

@@ -3,7 +3,13 @@ import MapboxMaps
 
 final class OfflineRegionObserverCustom: OfflineRegionObserver {
   func statusChanged(for status: OfflineRegionStatus) {
-    print("\(status.completedResourceCount)/\(status.requiredResourceCount) resources; \(status.completedResourceSize) bytes downloaded.")
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss" // You can adjust the date format as needed
+
+    let currentTime = Date()
+    let formattedTime = dateFormatter.string(from: currentTime)
+    
+    print("\(formattedTime) \(status.completedResourceCount)/\(status.requiredResourceCount) resources; \(status.completedResourceSize) bytes downloaded.")
   }
 
   func responseError(forError error: ResponseError) {
@@ -100,8 +106,6 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
   
     return pack
   }
-  
-  
   
   func createPackCallback(region: OfflineRegion,
                           metadata: Data,
