@@ -32,7 +32,7 @@ fun Style.addBitmapImage(imageId: String, bitmap: Bitmap, sdf: Boolean = false, 
     bitmap.copyPixelsToBuffer(byteBuffer)
     return this.addStyleImage(
         imageId,
-        scale.toFloat() ,
+        pixelRatio,
         Image(bitmap.width, bitmap.height, byteBuffer.array()),
         sdf,
         stretchX,
