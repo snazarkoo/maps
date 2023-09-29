@@ -363,6 +363,46 @@ class RCTMGLOfflineModuleLegacy: RCTEventEmitter {
   }
   
   @objc
+  func resetDatabase(_ resolver: @escaping RCTPromiseResolveBlock,
+    rejecter: @escaping RCTPromiseRejectBlock)
+  {
+    print("resetDatabase started");
+    DispatchQueue.main.async {
+      var purgedCount = 0
+      self.offlineRegionManager.offlineRegions { result in
+        switch result {
+        case .success(let regions):
+          if (regions.count ==  0) {resolver(nil);}
+          
+          for region in regions {
+            region.setOfflineRegionDownloadStateFor(.inactive)
+            region.purge { result in
+              switch result {
+              case let .failure(error):
+                rejecter("resetDatabase error", error.localizedDescription, error)
+                
+              case .success:
+                print("pack purged");
+                purgedCount += 1
+                if purgedCount == regions.count {
+                  print("resetDatabase done: \(regions.count) where purged");
+                  resolver(nil);
+                }
+              }
+            }
+           
+          }
+          
+          
+        case .failure(let error):
+          rejecter("resetDatabase error", error.localizedDescription, error)
+        }
+      }
+    }
+  }
+  
+  
+  @objc
   func migrateOfflineCache(_ resolve : @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
     // Old and new cache file paths
     

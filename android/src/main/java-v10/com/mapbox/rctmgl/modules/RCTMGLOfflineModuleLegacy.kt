@@ -222,8 +222,6 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
     @ReactMethod
     @Throws(JSONException::class)
     fun createPack(options: ReadableMap, promise: Promise) {
-        Log.d("OfflineModuleV10Legacy", "createPack started")
-
         try {
             val metadataBytes: ByteArray? =
                 getMetadataBytes(ConvertUtils.getString("metadata", options, ""))
@@ -416,10 +414,42 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
     }
 
     @ReactMethod
+    fun resetDatabase(promise: Promise) {
+        UiThreadUtil.runOnUiThread {
+            var purgedCount = 0
+            offlineRegionManager.getOfflineRegions { expected ->
+                if (expected.isValue) {
+                    expected.value?.let { regions ->
+                        if (regions.size == 0) promise.resolve(null)
+
+                        for (region in regions) {
+                            region.setOfflineRegionDownloadState(OfflineRegionDownloadState.INACTIVE)
+
+                            region.purge { expected ->
+                                if (expected.isError) {
+                                    promise.reject("resetDatabase error:", expected.error);
+                                } else {
+                                    purgedCount++
+                                    if (purgedCount == regions.size) {
+                                        Log.d(LOG_TAG, "resetDatabase done: ${regions.size} packs were purged")
+                                        promise.resolve(null)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    promise.reject("resetDatabase error:", expected.error);
+                }
+            }
+        }
+    }
+
+    @ReactMethod
     fun migrateOfflineCache(promise: Promise) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Old and new cache file paths
-            Log.d(RCTMGLOfflineModule.LOG_TAG, "v10 cache moving started")
+            Log.d(LOG_TAG, "v10 cache moving started")
             val targetDirectoryPathName = mReactContext.filesDir.absolutePath + "/.mapbox/map_data"
             val sourcePathName = mReactContext.filesDir.absolutePath + "/mbgl-offline.db"
             val sourcePath = Paths.get(sourcePathName)
