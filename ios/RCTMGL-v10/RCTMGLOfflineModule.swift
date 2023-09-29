@@ -574,14 +574,6 @@ class RCTMGLOfflineModule: RCTEventEmitter {
   }
   
   func offlinePackProgressDidChange(progress: TileRegionLoadProgress, metadata: [String:Any], state: State) {
-    let dateFormatter = DateFormatter()
-    dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss" // You can adjust the date format as needed
-
-    let currentTime = Date()
-    let formattedTime = dateFormatter.string(from: currentTime)
-    
-    print("\(formattedTime) \(progress.completedResourceCount)/\(progress.requiredResourceCount) resources; \(progress.completedResourceSize) bytes downloaded.")
-    
     if self.shouldSendProgressEvent(progress: progress, state: state) {
       let event = makeProgressEvent(metadata["name"] as! String, progress: progress, state: state)
       self._sendEvent(Callbacks.progress.rawValue, event: event)

@@ -130,8 +130,6 @@ class RCTMGLOfflineModule(private val mReactContext: ReactApplicationContext) :
     @ReactMethod
     @Throws(JSONException::class)
     fun createPack(options: ReadableMap, promise: Promise) {
-        Log.d("OfflineModuleV10New", "createPack started")
-
         try {
             val metadataStr = options.getString("metadata")!!
             val metadata = JSONObject(metadataStr)
@@ -317,20 +315,9 @@ class RCTMGLOfflineModule(private val mReactContext: ReactApplicationContext) :
                 tileRegionPacks[id]!!.progress = progress
                 tileRegionPacks[id]!!.state = TileRegionPackState.ACTIVE
 
-                Log.d(
-                    "OfflineModuleV10New",
-                    "${progress.completedResourceCount}/${progress.requiredResourceCount} resources; ${progress.completedResourceSize} bytes downloaded."
-                )
-
                 offlinePackProgressDidChange(progress, metadata, TileRegionPackState.ACTIVE)
             }, { expected ->
                 expected.value?.also {
-                    Log.d(
-                        RCTMGLOfflineModuleLegacy.LOG_TAG,
-                        "${it.completedResourceCount}/${it.requiredResourceCount} resources; ${it.completedResourceSize} bytes downloaded."
-                    )
-
-
                     val progress = lastProgress
                     if (progress != null) {
                         offlinePackProgressDidChange(progress, metadata, TileRegionPackState.COMPLETE)

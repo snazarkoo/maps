@@ -155,7 +155,7 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
         }
 
         override fun statusChanged(status: OfflineRegionStatus) {
-            Log.d("OfflineModuleV10Legacy",
+            Log.d(LOG_TAG,
                 "${status.completedResourceCount}/${status.requiredResourceCount} resources; ${status.completedResourceSize} bytes downloaded."
             )
         }
