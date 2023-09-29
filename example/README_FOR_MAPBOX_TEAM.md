@@ -1,7 +1,7 @@
 # For map mapbox team
 
 1. Clone the fork https://github.com/snazarkoo/maps.git
-2. Switch to `feat/offline-manager-legacy` branch
+2. Switch to `fork-for-mapbox-team` branch
 3. Install deps for rnmapbox `cd maps && yarn`
 4. Create `accesstoken` file in `maps/example`. Past your mapbox token here
 5. Add `MAPBOX_DOWNLOADS_TOKEN` to gradle.properties
