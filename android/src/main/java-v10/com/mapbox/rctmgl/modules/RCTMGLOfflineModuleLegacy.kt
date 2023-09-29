@@ -416,11 +416,12 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
     @ReactMethod
     fun resetDatabase(promise: Promise) {
         UiThreadUtil.runOnUiThread {
-            Log.d(LOG_TAG, "resetDatabase started")
             var purgedCount = 0
             offlineRegionManager.getOfflineRegions { expected ->
                 if (expected.isValue) {
                     expected.value?.let { regions ->
+                        if (regions.size == 0) promise.resolve(null)
+
                         for (region in regions) {
                             region.setOfflineRegionDownloadState(OfflineRegionDownloadState.INACTIVE)
 

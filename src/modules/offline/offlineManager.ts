@@ -223,6 +223,7 @@ class OfflineManager {
    */
   async migrateOfflineCache(): Promise<void> {
     await MapboxOfflineManager.migrateOfflineCache();
+    this._offlinePacks = {};
     await this._initialize(true);
   }
 
@@ -251,6 +252,7 @@ class OfflineManager {
    */
   async resetDatabase(): Promise<void> {
     await MapboxOfflineManager.resetDatabase();
+    this._offlinePacks = {};
     await this._initialize(true);
   }
 
