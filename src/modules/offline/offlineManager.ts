@@ -250,8 +250,8 @@ class OfflineManager {
    * @return {void}
    */
   async resetDatabase(): Promise<void> {
-    await this._initialize();
     await MapboxOfflineManager.resetDatabase();
+    await this._initialize(true);
   }
 
   /**
