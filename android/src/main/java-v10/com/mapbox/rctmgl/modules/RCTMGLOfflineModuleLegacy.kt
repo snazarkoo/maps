@@ -427,7 +427,7 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
 
                             region.purge { expected ->
                                 if (expected.isError) {
-                                    promise.reject("purge error:", expected.error);
+                                    promise.reject("resetDatabase error:", expected.error);
                                 } else {
                                     purgedCount++
                                     if (purgedCount == regions.size) {

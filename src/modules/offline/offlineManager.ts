@@ -413,7 +413,6 @@ class OfflineManager {
     if (this._hasInitialized && !forceInit) {
       return true;
     }
-
     const nativeOfflinePacks = await MapboxOfflineManager.getPacks();
 
     for (const nativeOfflinePack of nativeOfflinePacks) {
