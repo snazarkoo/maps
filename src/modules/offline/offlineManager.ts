@@ -17,7 +17,7 @@ import OfflinePack from './OfflinePack';
 
 const { MGLModule } = NativeModules;
 
-const MapboxOfflineManager = NativeModules.MGLOfflineModuleLegacy;
+const MapboxOfflineManager = NativeModules.MGLOfflineModule;
 export const OfflineModuleEventEmitter = new NativeEventEmitter(
   MapboxOfflineManager,
 );

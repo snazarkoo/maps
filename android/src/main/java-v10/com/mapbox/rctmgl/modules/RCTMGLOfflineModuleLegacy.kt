@@ -28,6 +28,7 @@ import com.mapbox.maps.OfflineRegionStatus
 import com.mapbox.maps.OfflineRegionTilePyramidDefinition
 import com.mapbox.maps.ResourceOptions
 import com.mapbox.maps.ResponseError
+import com.mapbox.rctmgl.BuildConfig
 import com.mapbox.rctmgl.utils.ConvertUtils
 import com.mapbox.rctmgl.utils.Logger
 import com.mapbox.rctmgl.utils.extensions.toGeometryCollection
@@ -48,7 +49,7 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
         mReactContext
     ) {
     companion object {
-        const val REACT_CLASS = "RCTMGLOfflineModuleLegacy"
+        const val REACT_CLASS = "RCTMGLOfflineModule"
         const val LOG_TAG = "OfflineModuleLegacy"
         const val DEFAULT_STYLE_URL = "mapbox://styles/mapbox/streets-v11"
         const val DEFAULT_MIN_ZOOM_LEVEL = 10.0
@@ -449,7 +450,6 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
     fun migrateOfflineCache(promise: Promise) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Old and new cache file paths
-            Log.d(LOG_TAG, "v10 cache moving started")
             val targetDirectoryPathName = mReactContext.filesDir.absolutePath + "/.mapbox/map_data"
             val sourcePathName = mReactContext.filesDir.absolutePath + "/mbgl-offline.db"
             val sourcePath = Paths.get(sourcePathName)
