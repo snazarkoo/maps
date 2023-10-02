@@ -1,8 +1,6 @@
 package com.mapbox.rctmgl.modules
 
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -28,7 +26,6 @@ import com.mapbox.maps.OfflineRegionStatus
 import com.mapbox.maps.OfflineRegionTilePyramidDefinition
 import com.mapbox.maps.ResourceOptions
 import com.mapbox.maps.ResponseError
-import com.mapbox.rctmgl.BuildConfig
 import com.mapbox.rctmgl.utils.ConvertUtils
 import com.mapbox.rctmgl.utils.Logger
 import com.mapbox.rctmgl.utils.extensions.toGeometryCollection
@@ -113,12 +110,11 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
                     }
                 }
             } else {
-                Log.d(LOG_TAG,  "createPack error:")
+                Log.d(LOG_TAG,  "createPack error: ${expected.error}")
                 promise.reject("createPack error:", "Failed to create OfflineRegion")
             }
         }
     }
-
 
     private fun fromOfflineRegion(region: OfflineRegion): WritableMap? {
         val bb = region.tilePyramidDefinition?.bounds
@@ -197,8 +193,6 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
         val isCompleted = percentage == 100.0
         val downloadState = if (isCompleted) COMPLETE_REGION_DOWNLOAD_STATE else status.downloadState.ordinal
 
-        Log.d(LOG_TAG, "STATUS ${status.toString()}")
-
         map.putString("name", regionName)
         map.putInt("state", downloadState)
         map.putDouble("percentage", percentage)
@@ -207,6 +201,7 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
         map.putInt("completedTileSize", status.completedTileSize.toInt())
         map.putInt("completedTileCount", status.completedTileCount.toInt())
         map.putInt("requiredResourceCount", status.requiredResourceCount.toInt())
+
         return map
     }
 
@@ -378,10 +373,8 @@ class RCTMGLOfflineModuleLegacy(private val mReactContext: ReactApplicationConte
                             return@getOfflineRegions
                         }
 
-                        Handler(Looper.getMainLooper()).post(Runnable {
-                            region.setOfflineRegionDownloadState(OfflineRegionDownloadState.INACTIVE)
-                            promise.resolve(null)
-                        })
+                        region.setOfflineRegionDownloadState(OfflineRegionDownloadState.INACTIVE)
+                        promise.resolve(null)
                     }
                 } else {
                     promise.reject("pausePackDownload error:", expected.error);
